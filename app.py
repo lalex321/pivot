@@ -37,7 +37,7 @@ async def profiles_list() -> dict:
 
 @app.post("/consolidate")
 async def do_consolidate(
-    profile: str = Form("vladimir"),
+    profile: str = Form("default"),
     files: list[UploadFile] = File(...),
 ) -> Response:
     if profile not in PROFILES:
@@ -55,7 +55,7 @@ async def do_consolidate(
     except ValueError as e:
         raise HTTPException(400, str(e))
 
-    fname = f"{PROFILES[profile].name} - Сводная статистика.xlsx"
+    fname = "Сводная статистика.xlsx"
     info_header = json.dumps(info, ensure_ascii=True)  # ASCII-safe for HTTP header
 
     return Response(

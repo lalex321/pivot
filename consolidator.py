@@ -69,8 +69,8 @@ class Profile:
 
 
 PROFILES: dict[str, Profile] = {
-    "vladimir": Profile(
-        name="VLADIMIR",
+    "default": Profile(
+        name="Default",
         sheet_name="Word Count Summary",
         episode_pattern=r"(\d+)\s*СЕРИЯ",
         total_marker="TOTAL WORD COUNT BY TEXT CATEGORY",
@@ -391,7 +391,7 @@ def build_workbook_bytes(episodes: dict[int, EpisodeData], profile: Profile) -> 
 
 
 def consolidate(
-    files: list[tuple[str, bytes]], profile_key: str = "vladimir"
+    files: list[tuple[str, bytes]], profile_key: str = "default"
 ) -> tuple[bytes, dict]:
     """
     Высокоуровневая обёртка для UI.
@@ -424,7 +424,7 @@ def _cli() -> None:
     p = argparse.ArgumentParser(description="Сводит xlsx-статистику по персонажам.")
     p.add_argument("-i", "--input-dir", default=".")
     p.add_argument("-o", "--output", default=None)
-    p.add_argument("-p", "--profile", default="vladimir", choices=list(PROFILES))
+    p.add_argument("-p", "--profile", default="default", choices=list(PROFILES))
     args = p.parse_args()
 
     folder = Path(args.input_dir).expanduser().resolve()

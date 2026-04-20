@@ -8,12 +8,12 @@
 
 ## Что на входе
 
-По умолчанию — профиль **VLADIMIR**:
+По умолчанию — профиль `default`:
 
 - формат файлов: `.xlsx`
 - внутри каждого файла — лист `Word Count Summary`
 - номер серии берётся из имени файла по паттерну `(\d+)\s*СЕРИЯ`
-  (подходит `1 СЕРИЯ VLADIMIR FINAL.xlsx`, `10 СЕРИЯ…` и т.п.)
+  (подходит `1 СЕРИЯ FINAL.xlsx`, `10 СЕРИЯ…` и т.п.)
 - колонки листа (в порядке): Персонаж, Dialog WC, Transcription WC, Foreign Dialogue,
   Music And Song, Burnedin Subtitle, Onscreen Text, Total WC
 
@@ -47,7 +47,7 @@ uvicorn app:app --reload --port 8000
 
 ```bash
 python consolidator.py -i /path/to/folder -o out.xlsx
-python consolidator.py -i /path/to/folder --profile vladimir
+python consolidator.py -i /path/to/folder --profile default
 ```
 
 ## Эндпоинты

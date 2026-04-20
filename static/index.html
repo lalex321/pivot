@@ -454,7 +454,7 @@
     <div class="dropzone-sub">или <button class="linkish" type="button" id="browse-btn">выбери на диске</button></div>
     <div class="dropzone-hint">
       <span class="dot"></span>
-      Профиль: <strong style="color: var(--text);">VLADIMIR</strong> · лист «Word Count Summary»
+      Профиль: <strong style="color: var(--text);">Default</strong> · лист «Word Count Summary»
     </div>
   </section>
 
@@ -604,7 +604,7 @@
     output.innerHTML = '';
 
     const fd = new FormData();
-    fd.append('profile', 'vladimir');
+    fd.append('profile', 'default');
     for (const f of files) fd.append('files', f, f.name);
 
     try {
