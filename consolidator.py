@@ -224,15 +224,19 @@ def _write_pivot_sheet(
         cnt.font, cnt.alignment, cnt.border = NORMAL_FONT, RIGHT, BORDER
         row += 1
 
+    # пустая строка-разделитель: мешает Excel'у захватить EPISODE TOTAL при сортировке
+    last_data_row = row - 1
+    row += 1
+
     tc = ws.cell(row=row, column=1, value="EPISODE TOTAL")
     tc.font, tc.fill, tc.alignment, tc.border = TOTAL_FONT, TOTAL_FILL, LEFT, BORDER
     for i in range(2, len(headers) + 1):
         col = get_column_letter(i)
-        cell = ws.cell(row=row, column=i, value=f"=SUM({col}4:{col}{row - 1})")
+        cell = ws.cell(row=row, column=i, value=f"=SUM({col}4:{col}{last_data_row})")
         cell.font, cell.fill, cell.alignment, cell.border = TOTAL_FONT, TOTAL_FILL, RIGHT, BORDER
 
-    # фильтр на заголовке + данных (без строки "ИТОГО ПО СЕРИИ")
-    ws.auto_filter.ref = f"A3:{get_column_letter(len(headers))}{row - 1}"
+    # фильтр на заголовке + данных (без разделителя и строки "EPISODE TOTAL")
+    ws.auto_filter.ref = f"A3:{get_column_letter(len(headers))}{last_data_row}"
 
     ws.column_dimensions["A"].width = 32
     for i in range(2, len(headers) + 1):
@@ -295,17 +299,21 @@ def _write_totals_sheet(ws, episodes, profile: Profile) -> None:
                 c.font, c.alignment = NORMAL_FONT, RIGHT
         r += 1
 
+    # пустая строка-разделитель (чтобы Excel не захватывал итог при сортировке)
+    last_data_row = r - 1
+    r += 1
+
     ws.cell(row=r, column=1, value=f"GRAND TOTAL ({len(episodes)} episodes)")
     for col in range(2, 9):
         letter = get_column_letter(col)
-        ws.cell(row=r, column=col, value=f"=SUM({letter}4:{letter}{r - 1})")
+        ws.cell(row=r, column=col, value=f"=SUM({letter}4:{letter}{last_data_row})")
     for col in range(1, 9):
         c = ws.cell(row=r, column=col)
         c.font, c.fill, c.border = TOTAL_FONT, TOTAL_FILL, BORDER
         c.alignment = LEFT if col == 1 else RIGHT
 
-    # фильтр на заголовке + данных (без строки "ВСЕГО")
-    ws.auto_filter.ref = f"A3:H{r - 1}"
+    # фильтр на заголовке + данных (без разделителя и строки "GRAND TOTAL")
+    ws.auto_filter.ref = f"A3:H{last_data_row}"
 
     ws.column_dimensions["A"].width = 18
     for i in range(2, 9):
@@ -334,17 +342,21 @@ def _write_episode_sheet(ws, ep: int, data: EpisodeData, profile: Profile) -> No
             c.alignment = LEFT if col == 1 else RIGHT
         r += 1
 
+    # пустая строка-разделитель (чтобы Excel не захватывал итог при сортировке)
+    last_data_row = r - 1
+    r += 1
+
     ws.cell(row=r, column=1, value="TOTAL")
     for col in range(2, 9):
         letter = get_column_letter(col)
-        ws.cell(row=r, column=col, value=f"=SUM({letter}2:{letter}{r - 1})")
+        ws.cell(row=r, column=col, value=f"=SUM({letter}2:{letter}{last_data_row})")
     for col in range(1, 9):
         c = ws.cell(row=r, column=col)
         c.font, c.fill, c.border = TOTAL_FONT, TOTAL_FILL, BORDER
         c.alignment = LEFT if col == 1 else RIGHT
 
-    # фильтр на заголовке + данных (без строки "ИТОГО")
-    ws.auto_filter.ref = f"A1:H{r - 1}"
+    # фильтр на заголовке + данных (без разделителя и строки "TOTAL")
+    ws.auto_filter.ref = f"A1:H{last_data_row}"
 
     ws.column_dimensions["A"].width = 32
     for i in range(2, 9):
