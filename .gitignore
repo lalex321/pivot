@@ -2,7 +2,10 @@
 __pycache__/
 *.pyc
 .DS_Store
-.streamlit/secrets.toml
+
+# Runtime-данные: лог использования, прочие стейт-файлы
+_data/
+usage.jsonl
 
 # Локальные тестовые материалы — не пушим в публичный репо
 samples/

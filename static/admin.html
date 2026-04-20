@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Пивот — Админка</title>
+<script>
+  (function() {
+    try {
+      const saved = localStorage.getItem('pivot-theme');
+      const prefersLight = window.matchMedia &&
+        window.matchMedia('(prefers-color-scheme: light)').matches;
+      document.documentElement.dataset.theme = saved || (prefersLight ? 'light' : 'dark');
+    } catch (_) {
+      document.documentElement.dataset.theme = 'dark';
+    }
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root, [data-theme="dark"] {
+    --bg: #0a0a0f;
+    --card: #18181b;
+    --card-hi: #1f1f24;
+    --border: #27272a;
+    --border-strong: #3f3f46;
+    --text: #ededed;
+    --text-dim: #9ca3af;
+    --text-faint: #6b7280;
+    --accent: #8b5cf6;
+    --accent-hi: #a78bfa;
+    --accent-deep: #7c3aed;
+    --accent-glow: rgba(139, 92, 246, 0.3);
+    --danger: #ef4444;
+    --success: #10b981;
+    --warn: #f59e0b;
+    --stat-bg: rgba(0,0,0,0.25);
+    --logo-top: #fff;
+    --glow-opacity: 0.4;
+    --row-zebra: rgba(255,255,255,0.02);
+  }
+  [data-theme="light"] {
+    --bg: #fafafa;
+    --card: #ffffff;
+    --card-hi: #fafafa;
+    --border: #e4e4e7;
+    --border-strong: #d4d4d8;
+    --text: #18181b;
+    --text-dim: #52525b;
+    --text-faint: #71717a;
+    --accent: #7c3aed;
+    --accent-hi: #6d28d9;
+    --accent-deep: #6d28d9;
+    --accent-glow: rgba(124, 58, 237, 0.2);
+    --danger: #dc2626;
+    --success: #059669;
+    --warn: #d97706;
+    --stat-bg: rgba(0,0,0,0.025);
+    --logo-top: #18181b;
+    --glow-opacity: 0.2;
+    --row-zebra: rgba(0,0,0,0.02);
+  }
+
+  html, body {
+    min-height: 100vh;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  body { position: relative; overflow-x: hidden; }
+
+  .bg-glow {
+    position: fixed;
+    top: -15%; right: -10%;
+    width: 60vw; height: 60vw;
+    max-width: 800px; max-height: 800px;
+    background: radial-gradient(circle, var(--accent-glow) 0%, transparent 60%);
+    filter: blur(80px);
+    pointer-events: none;
+    z-index: 0;
+    opacity: var(--glow-opacity);
+  }
+
+  /* theme toggle */
+  .theme-toggle {
+    position: fixed;
+    top: 14px; right: 14px;
+    z-index: 10;
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    transition: all 180ms cubic-bezier(0.4, 0, 0.2, 1);
+    padding: 0;
+  }
+  .theme-toggle:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    transform: scale(1.06);
+  }
+  .theme-toggle svg { width: 16px; height: 16px; display: block; }
+  [data-theme="dark"] .icon-sun { display: block; }
+  [data-theme="dark"] .icon-moon { display: none; }
+  [data-theme="light"] .icon-sun { display: none; }
+  [data-theme="light"] .icon-moon { display: block; }
+
+  main {
+    position: relative;
+    z-index: 1;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 40px 20px 80px;
+  }
+
+  header { margin-bottom: 28px; }
+  .crumbs {
+    font-size: 12px;
+    margin-bottom: 8px;
+    color: var(--text-faint);
+  }
+  .crumbs a {
+    color: var(--accent);
+    text-decoration: none;
+    border-bottom: 1px dashed currentColor;
+    transition: color 150ms;
+  }
+  .crumbs a:hover { color: var(--accent-hi); }
+  .title {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, var(--logo-top) 0%, var(--accent) 80%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    display: inline-block;
+  }
+  .subtitle {
+    color: var(--text-dim);
+    font-size: 13px;
+    margin-top: 2px;
+  }
+
+  .controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    align-items: center;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  .refresh-btn {
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 12px;
+    border-radius: 8px;
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 150ms;
+  }
+  .refresh-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .refresh-btn svg { width: 13px; height: 13px; }
+  .last-update { margin-left: auto; font-size: 12px; color: var(--text-faint); }
+
+  /* stats grid */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px;
+    margin-bottom: 28px;
+  }
+  .stat-card {
+    padding: 14px 16px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    transition: border-color 150ms;
+  }
+  .stat-card:hover { border-color: var(--border-strong); }
+  .stat-label {
+    font-size: 10px;
+    color: var(--text-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
+  }
+  .stat-value {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.1;
+  }
+  .stat-value.accent { color: var(--accent); }
+  .stat-value.success { color: var(--success); }
+  .stat-value.danger { color: var(--danger); }
+  .stat-sub {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 3px;
+  }
+
+  /* section heading */
+  h2 {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  h2 .count {
+    font-size: 12px;
+    color: var(--text-faint);
+    font-weight: 500;
+  }
+
+  /* table */
+  .table-wrap {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  thead th {
+    background: var(--card-hi);
+    color: var(--text-dim);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  thead th.right { text-align: right; }
+  tbody td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    vertical-align: middle;
+  }
+  tbody td.right { text-align: right; }
+  tbody td.dim { color: var(--text-dim); }
+  tbody tr:nth-child(even) { background: var(--row-zebra); }
+  tbody tr:hover { background: var(--card-hi); }
+  tbody tr:last-child td { border-bottom: none; }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .badge.ok { background: rgba(16, 185, 129, 0.15); color: var(--success); }
+  .badge.fail { background: rgba(239, 68, 68, 0.15); color: var(--danger); }
+
+  .empty {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 14px;
+  }
+  .err-msg {
+    font-size: 12px;
+    color: var(--danger);
+    max-width: 280px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mono {
+    font-family: 'SF Mono', Menlo, Monaco, monospace;
+    font-size: 12px;
+  }
+  code.ip {
+    font-family: 'SF Mono', Menlo, Monaco, monospace;
+    font-size: 11px;
+    color: var(--text-faint);
+  }
+
+  .spinner-lg {
+    display: block;
+    width: 24px; height: 24px;
+    margin: 40px auto;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 700ms linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="bg-glow"></div>
+
+<button class="theme-toggle" id="theme-toggle" aria-label="Переключить тему" title="Переключить тему">
+  <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="12" r="4"/>
+    <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
+  </svg>
+  <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+  </svg>
+</button>
+
+<main>
+  <header>
+    <div class="crumbs"><a href="/">← Пивот</a></div>
+    <h1 class="title">Админка</h1>
+    <div class="subtitle">Активность на сайте. Лог эфемерный — очищается при передеплое.</div>
+  </header>
+
+  <div class="controls">
+    <button class="refresh-btn" id="refresh-btn" title="Обновить">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M23 4v6h-6M1 20v-6h6"/>
+        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+      </svg>
+      Обновить
+    </button>
+    <span class="last-update" id="last-update"></span>
+  </div>
+
+  <div id="dashboard">
+    <div class="spinner-lg"></div>
+  </div>
+</main>
+
+<script>
+  const themeToggle = document.getElementById('theme-toggle');
+  themeToggle.addEventListener('click', () => {
+    const cur = document.documentElement.dataset.theme;
+    const next = cur === 'light' ? 'dark' : 'light';
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem('pivot-theme', next); } catch (_) {}
+  });
+
+  const dashboard = document.getElementById('dashboard');
+  const refreshBtn = document.getElementById('refresh-btn');
+  const lastUpdate = document.getElementById('last-update');
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, c =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  function fmtMs(ms) {
+    if (!ms) return '—';
+    if (ms < 1000) return ms + ' ms';
+    return (ms / 1000).toFixed(1) + ' s';
+  }
+
+  function fmtRelative(iso) {
+    try {
+      const t = new Date(iso);
+      const now = new Date();
+      const diff = Math.round((now - t) / 1000);
+      if (diff < 5) return 'только что';
+      if (diff < 60) return diff + ' с назад';
+      if (diff < 3600) return Math.floor(diff / 60) + ' мин назад';
+      if (diff < 86400) return Math.floor(diff / 3600) + ' ч назад';
+      return Math.floor(diff / 86400) + ' д назад';
+    } catch { return '—'; }
+  }
+
+  function fmtTime(iso) {
+    try {
+      const t = new Date(iso);
+      return t.toLocaleString('ru-RU', {
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        day: '2-digit', month: '2-digit',
+      });
+    } catch { return '—'; }
+  }
+
+  function render(data) {
+    const t = data.totals;
+    const recent = data.recent || [];
+    const rate = t.runs > 0 ? Math.round((t.success / t.runs) * 100) : 0;
+
+    const statsHtml = `
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Всего запусков</div>
+          <div class="stat-value accent">${t.runs}</div>
+          <div class="stat-sub">Успешных: ${t.success} · Неудачных: ${t.failure}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Сегодня</div>
+          <div class="stat-value">${t.today}</div>
+          <div class="stat-sub">за последние 24 часа</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">За 7 дней</div>
+          <div class="stat-value">${t.week}</div>
+          <div class="stat-sub">скользящее окно</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Success rate</div>
+          <div class="stat-value ${rate >= 90 ? 'success' : rate >= 70 ? '' : 'danger'}">${t.runs ? rate + '%' : '—'}</div>
+          <div class="stat-sub">успешных от всех</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Ср. длительность</div>
+          <div class="stat-value">${fmtMs(t.avg_duration_ms)}</div>
+          <div class="stat-sub">по всем запускам</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Файлов обработано</div>
+          <div class="stat-value">${t.total_files}</div>
+          <div class="stat-sub">серий: ${t.total_episodes}, персонажей: ${t.total_characters}</div>
+        </div>
+      </div>
+    `;
+
+    let tableHtml;
+    if (recent.length === 0) {
+      tableHtml = `
+        <h2>Последние запуски</h2>
+        <div class="table-wrap"><div class="empty">Пока ни одного запуска. Загрузи файлы на <a href="/" style="color: var(--accent);">главной</a>.</div></div>
+      `;
+    } else {
+      tableHtml = `
+        <h2>Последние запуски <span class="count">${recent.length}</span></h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Время</th>
+                <th>Статус</th>
+                <th class="right">Файлов</th>
+                <th class="right">Серий</th>
+                <th class="right">Перс.</th>
+                <th>Общее имя</th>
+                <th class="right">Длит.</th>
+                <th>IP</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${recent.map(e => {
+                const ok = !!e.ok;
+                const common = (e.common_name || '').trim();
+                return `
+                  <tr>
+                    <td>
+                      <div>${esc(fmtRelative(e.ts))}</div>
+                      <div style="font-size:11px;color:var(--text-faint);">${esc(fmtTime(e.ts))}</div>
+                    </td>
+                    <td>
+                      ${ok
+                        ? `<span class="badge ok">✓ OK</span>`
+                        : `<span class="badge fail">✗ Fail</span>${e.error ? `<div class="err-msg" title="${esc(e.error)}">${esc(e.error)}</div>` : ''}`
+                      }
+                    </td>
+                    <td class="right mono">${e.files ?? '—'}</td>
+                    <td class="right mono">${e.episodes ?? '—'}</td>
+                    <td class="right mono">${e.characters ?? '—'}</td>
+                    <td class="dim">${common ? esc(common) : '<span style="color:var(--text-faint);">—</span>'}</td>
+                    <td class="right mono">${fmtMs(e.duration_ms)}</td>
+                    <td><code class="ip">${esc(e.ip || '?')}</code></td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    dashboard.innerHTML = statsHtml + tableHtml;
+    lastUpdate.textContent = 'Обновлено: ' + new Date().toLocaleTimeString('ru-RU');
+  }
+
+  function renderError(msg) {
+    dashboard.innerHTML = `
+      <div class="table-wrap" style="border-color: var(--danger);">
+        <div class="empty" style="color: var(--danger);">Ошибка загрузки: ${esc(msg)}</div>
+      </div>
+    `;
+  }
+
+  async function load() {
+    try {
+      const r = await fetch('/admin/data?limit=100');
+      if (!r.ok) { renderError('HTTP ' + r.status); return; }
+      const data = await r.json();
+      render(data);
+    } catch (e) {
+      renderError(String(e.message || e));
+    }
+  }
+
+  refreshBtn.addEventListener('click', load);
+  load();
+</script>
+</body>
+</html>
