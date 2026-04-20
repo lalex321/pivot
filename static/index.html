@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Пивот — сводная статистика слов</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0a0f;
+    --bg-2: #13131a;
+    --card: #18181b;
+    --card-hi: #1f1f24;
+    --border: #27272a;
+    --border-strong: #3f3f46;
+    --text: #ededed;
+    --text-dim: #9ca3af;
+    --text-faint: #6b7280;
+    --accent: #8b5cf6;
+    --accent-hi: #a78bfa;
+    --accent-deep: #7c3aed;
+    --accent-glow: rgba(139, 92, 246, 0.3);
+    --danger: #ef4444;
+    --success: #10b981;
+    --warn: #f59e0b;
+  }
+  html, body {
+    min-height: 100vh;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 16px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  body { position: relative; overflow-x: hidden; }
+
+  .bg-glow {
+    position: fixed;
+    top: -20%;
+    right: -15%;
+    width: 70vw;
+    height: 70vw;
+    max-width: 900px;
+    max-height: 900px;
+    background: radial-gradient(circle, var(--accent-glow) 0%, transparent 60%);
+    filter: blur(80px);
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.5;
+  }
+  .bg-glow.secondary {
+    top: auto; right: auto;
+    bottom: -20%; left: -15%;
+    background: radial-gradient(circle, rgba(124, 58, 237, 0.25) 0%, transparent 60%);
+    opacity: 0.4;
+  }
+
+  main {
+    position: relative;
+    z-index: 1;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 72px 24px 120px;
+  }
+
+  header { text-align: center; margin-bottom: 48px; }
+  .logo {
+    font-size: 56px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    background: linear-gradient(135deg, #fff 0%, var(--accent) 80%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 14px;
+  }
+  .tagline {
+    color: var(--text-dim);
+    font-size: 17px;
+    font-weight: 400;
+  }
+
+  /* dropzone */
+  .dropzone {
+    position: relative;
+    border: 2px dashed var(--border-strong);
+    border-radius: 16px;
+    background: rgba(24, 24, 27, 0.4);
+    backdrop-filter: blur(8px);
+    padding: 56px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    margin-bottom: 16px;
+    user-select: none;
+  }
+  .dropzone:hover {
+    border-color: var(--border-strong);
+    background: rgba(24, 24, 27, 0.6);
+    transform: translateY(-1px);
+  }
+  .dropzone.dragover {
+    border-color: var(--accent);
+    background: rgba(139, 92, 246, 0.06);
+    box-shadow: 0 0 0 4px var(--accent-glow), 0 20px 40px -20px var(--accent-glow);
+    transform: translateY(-2px);
+  }
+  .dropzone-icon {
+    font-size: 44px;
+    margin-bottom: 16px;
+    opacity: 0.7;
+    transition: transform 200ms;
+  }
+  .dropzone.dragover .dropzone-icon {
+    transform: translateY(-4px) scale(1.05);
+    opacity: 1;
+  }
+  .dropzone-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: var(--text);
+  }
+  .dropzone-sub {
+    color: var(--text-dim);
+    font-size: 15px;
+  }
+  .linkish {
+    background: none;
+    border: none;
+    color: var(--accent);
+    font: inherit;
+    cursor: pointer;
+    padding: 0;
+    border-bottom: 1px dashed currentColor;
+    transition: color 150ms;
+  }
+  .linkish:hover { color: var(--accent-hi); }
+  .dropzone-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 20px;
+    padding: 6px 12px;
+    background: rgba(139, 92, 246, 0.08);
+    border: 1px solid rgba(139, 92, 246, 0.15);
+    border-radius: 999px;
+    font-size: 12px;
+    color: var(--text-dim);
+    font-weight: 500;
+  }
+  .dropzone-hint .dot {
+    width: 6px; height: 6px;
+    background: var(--accent);
+    border-radius: 50%;
+  }
+
+  /* file list */
+  .files {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .files:empty { display: none; }
+  .file {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 16px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    animation: slideIn 240ms cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 150ms;
+  }
+  .file:hover { border-color: var(--border-strong); background: var(--card-hi); }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .file-icon {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(139, 92, 246, 0.08));
+    color: var(--accent-hi);
+    display: grid;
+    place-items: center;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    flex-shrink: 0;
+  }
+  .file-info { flex: 1; min-width: 0; }
+  .file-name {
+    font-size: 14px;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .file-meta {
+    font-size: 12px;
+    color: var(--text-faint);
+    margin-top: 2px;
+  }
+  .file-ep {
+    display: inline-block;
+    padding: 1px 8px;
+    background: rgba(139, 92, 246, 0.15);
+    color: var(--accent-hi);
+    border-radius: 999px;
+    margin-right: 8px;
+    font-weight: 600;
+  }
+  .file-ep.unknown { background: rgba(245, 158, 11, 0.12); color: var(--warn); }
+  .file-remove {
+    background: none;
+    border: none;
+    color: var(--text-faint);
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 6px;
+    display: grid;
+    place-items: center;
+    transition: all 150ms;
+    width: 28px;
+    height: 28px;
+  }
+  .file-remove:hover {
+    color: var(--danger);
+    background: rgba(239, 68, 68, 0.1);
+  }
+
+  .toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    padding: 0 4px;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  .toolbar:empty { display: none; }
+  .toolbar .clear-all {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    padding: 2px 8px;
+    border-radius: 6px;
+    transition: all 150ms;
+  }
+  .toolbar .clear-all:hover { color: var(--danger); background: rgba(239, 68, 68, 0.08); }
+
+  /* CTA */
+  .cta {
+    width: 100%;
+    padding: 16px 20px;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-deep) 100%);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font: inherit;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 8px 24px -10px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+  .cta:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 32px -10px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.2);
+  }
+  .cta:active:not(:disabled) { transform: translateY(0); }
+  .cta:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    background: var(--card);
+    color: var(--text-faint);
+    box-shadow: none;
+  }
+  .spinner {
+    display: inline-block;
+    width: 16px; height: 16px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 600ms linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* result */
+  .result, .error {
+    margin-top: 28px;
+    padding: 24px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    animation: slideIn 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .result-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .result-badge {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.25), rgba(16, 185, 129, 0.1));
+    color: var(--success);
+    display: grid;
+    place-items: center;
+    font-weight: 700;
+  }
+  .result-title { font-size: 18px; font-weight: 600; }
+  .stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .stat {
+    padding: 14px 16px;
+    background: rgba(0,0,0,0.25);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  .stat-label {
+    font-size: 12px;
+    color: var(--text-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
+  }
+  .stat-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.1;
+  }
+  .stat-extra {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+  .download-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 20px;
+    background: var(--accent);
+    color: white;
+    border-radius: 10px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 14px;
+    transition: all 150ms;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .download-btn:hover {
+    background: var(--accent-hi);
+    transform: translateY(-1px);
+    box-shadow: 0 8px 20px -8px var(--accent-glow);
+  }
+  .warnings {
+    margin-top: 16px;
+    padding: 14px 16px;
+    background: rgba(245, 158, 11, 0.06);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+    border-radius: 10px;
+  }
+  .warnings-title {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--warn);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .warnings ul { list-style: none; }
+  .warnings li {
+    font-size: 13px;
+    color: var(--text-dim);
+    padding: 3px 0;
+    padding-left: 14px;
+    position: relative;
+  }
+  .warnings li::before {
+    content: '•';
+    position: absolute;
+    left: 0;
+    color: var(--warn);
+  }
+
+  .error {
+    border-color: rgba(239, 68, 68, 0.3);
+    background: rgba(239, 68, 68, 0.05);
+  }
+  .error-title {
+    color: var(--danger);
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .error-msg { color: var(--text-dim); font-size: 14px; }
+
+  footer {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    padding: 24px;
+    color: var(--text-faint);
+    font-size: 12px;
+  }
+  footer code {
+    font-family: 'SF Mono', Menlo, Monaco, monospace;
+    font-size: 11px;
+    background: var(--card);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--text-dim);
+  }
+</style>
+</head>
+<body>
+<div class="bg-glow"></div>
+<div class="bg-glow secondary"></div>
+
+<main>
+  <header>
+    <h1 class="logo">Пивот</h1>
+    <p class="tagline">Сводная статистика слов по персонажам и сериям</p>
+  </header>
+
+  <section class="dropzone" id="dropzone" tabindex="0" role="button">
+    <input type="file" id="file-input" multiple accept=".xlsx" hidden>
+    <div class="dropzone-icon">↑</div>
+    <div class="dropzone-title">Перетащи xlsx-файлы сюда</div>
+    <div class="dropzone-sub">или <button class="linkish" type="button" id="browse-btn">выбери на диске</button></div>
+    <div class="dropzone-hint">
+      <span class="dot"></span>
+      Профиль: <strong style="color: var(--text);">VLADIMIR</strong> · лист «Word Count Summary»
+    </div>
+  </section>
+
+  <div class="toolbar" id="toolbar"></div>
+  <section class="files" id="files-list"></section>
+
+  <button class="cta" id="process-btn" disabled>
+    <span id="process-label">Собрать сводную</span>
+  </button>
+
+  <div id="output"></div>
+</main>
+
+<footer>
+  Запущено локально · <code>uvicorn app:app --reload</code>
+</footer>
+
+<script>
+  const dz = document.getElementById('dropzone');
+  const fi = document.getElementById('file-input');
+  const browseBtn = document.getElementById('browse-btn');
+  const toolbar = document.getElementById('toolbar');
+  const filesList = document.getElementById('files-list');
+  const btn = document.getElementById('process-btn');
+  const btnLabel = document.getElementById('process-label');
+  const output = document.getElementById('output');
+
+  const EPISODE_RE = /(\d+)\s*СЕРИЯ/i;
+  let files = [];
+
+  // --- browse / drop ---
+  browseBtn.addEventListener('click', e => { e.stopPropagation(); fi.click(); });
+  dz.addEventListener('click', () => fi.click());
+  dz.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fi.click(); }
+  });
+
+  ['dragover', 'dragenter'].forEach(ev =>
+    dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('dragover'); }));
+  ['dragleave', 'dragend', 'drop'].forEach(ev =>
+    dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove('dragover'); }));
+
+  dz.addEventListener('drop', e => {
+    const dropped = [...e.dataTransfer.files];
+    addFiles(dropped);
+  });
+  fi.addEventListener('change', e => {
+    addFiles([...e.target.files]);
+    fi.value = '';
+  });
+
+  // ignore drops on the rest of the page
+  ['dragover', 'drop'].forEach(ev =>
+    window.addEventListener(ev, e => e.preventDefault()));
+
+  function addFiles(newFiles) {
+    const eligible = newFiles.filter(f =>
+      f.name.toLowerCase().endsWith('.xlsx') && !f.name.startsWith('~$')
+    );
+    const existing = new Set(files.map(f => f.name + '|' + f.size));
+    for (const f of eligible) {
+      const key = f.name + '|' + f.size;
+      if (!existing.has(key)) {
+        files.push(f);
+        existing.add(key);
+      }
+    }
+    render();
+  }
+
+  function removeFile(idx) {
+    files.splice(idx, 1);
+    render();
+  }
+
+  function clearAll() {
+    files = [];
+    render();
+  }
+
+  function fmtSize(n) {
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+    return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  function detectEp(name) {
+    const m = name.match(EPISODE_RE);
+    return m ? parseInt(m[1], 10) : null;
+  }
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, c =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  function render() {
+    if (files.length === 0) {
+      toolbar.innerHTML = '';
+      filesList.innerHTML = '';
+    } else {
+      toolbar.innerHTML = `
+        <span>${files.length} файл${pluralRu(files.length, 'а', 'ов', '')}</span>
+        <button class="clear-all" id="clear-all-btn">Очистить всё</button>
+      `;
+      document.getElementById('clear-all-btn').onclick = clearAll;
+
+      filesList.innerHTML = files.map((f, i) => {
+        const ep = detectEp(f.name);
+        const epLabel = ep !== null
+          ? `<span class="file-ep">Серия ${ep}</span>`
+          : `<span class="file-ep unknown">? серия</span>`;
+        return `
+          <div class="file">
+            <div class="file-icon">XLSX</div>
+            <div class="file-info">
+              <div class="file-name">${esc(f.name)}</div>
+              <div class="file-meta">${epLabel}${fmtSize(f.size)}</div>
+            </div>
+            <button class="file-remove" data-idx="${i}" title="Убрать">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 3L11 11M11 3L3 11"/>
+              </svg>
+            </button>
+          </div>
+        `;
+      }).join('');
+      filesList.querySelectorAll('.file-remove').forEach(b =>
+        b.onclick = () => removeFile(parseInt(b.dataset.idx, 10)));
+    }
+    btn.disabled = files.length === 0;
+  }
+
+  function pluralRu(n, one, few, many) {
+    const mod10 = n % 10, mod100 = n % 100;
+    if (mod10 === 1 && mod100 !== 11) return one;
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return few;
+    return many;
+  }
+
+  // --- submit ---
+  btn.addEventListener('click', async () => {
+    if (files.length === 0 || btn.disabled) return;
+
+    btn.disabled = true;
+    btnLabel.innerHTML = '<span class="spinner"></span>Обрабатываю…';
+    output.innerHTML = '';
+
+    const fd = new FormData();
+    fd.append('profile', 'vladimir');
+    for (const f of files) fd.append('files', f, f.name);
+
+    try {
+      const r = await fetch('/consolidate', { method: 'POST', body: fd });
+      if (!r.ok) {
+        let msg = 'Ошибка сервера';
+        try {
+          const body = await r.json();
+          msg = body.detail || msg;
+        } catch { msg = await r.text() || msg; }
+        showError(msg);
+        return;
+      }
+
+      const infoHeader = r.headers.get('X-Pivot-Info') || '{}';
+      const info = JSON.parse(infoHeader);
+      const blob = await r.blob();
+      const filename = parseFilename(r.headers.get('Content-Disposition'));
+      showResult(info, blob, filename);
+    } catch (e) {
+      showError(String(e.message || e));
+    } finally {
+      btnLabel.textContent = 'Собрать сводную';
+      btn.disabled = files.length === 0;
+    }
+  });
+
+  function parseFilename(cd) {
+    if (!cd) return 'Сводная.xlsx';
+    const m1 = cd.match(/filename\*=UTF-8''([^;]+)/i);
+    if (m1) { try { return decodeURIComponent(m1[1]); } catch { return m1[1]; } }
+    const m2 = cd.match(/filename="([^"]+)"/);
+    return m2 ? m2[1] : 'Сводная.xlsx';
+  }
+
+  function showResult(info, blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const eps = info.episodes || [];
+    const warnings = info.warnings || [];
+    const epsText = eps.length > 0 ? eps.join(', ') : '—';
+
+    output.innerHTML = `
+      <div class="result">
+        <div class="result-head">
+          <div class="result-badge">✓</div>
+          <div class="result-title">Готово</div>
+        </div>
+        <div class="stats">
+          <div class="stat">
+            <div class="stat-label">Серий</div>
+            <div class="stat-value">${eps.length}</div>
+            <div class="stat-extra">${esc(epsText)}</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Персонажей</div>
+            <div class="stat-value">${info.characters || 0}</div>
+            <div class="stat-extra">уникальных</div>
+          </div>
+        </div>
+        <a class="download-btn" href="${url}" download="${esc(filename)}">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 2v9M3.5 7.5L8 12l4.5-4.5M2 14h12"/>
+          </svg>
+          Скачать .xlsx
+        </a>
+        ${warnings.length ? `
+          <div class="warnings">
+            <div class="warnings-title">⚠ Предупреждения (${warnings.length})</div>
+            <ul>${warnings.map(w => `<li>${esc(w)}</li>`).join('')}</ul>
+          </div>
+        ` : ''}
+      </div>
+    `;
+    output.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function showError(msg) {
+    output.innerHTML = `
+      <div class="error">
+        <div class="error-title">⚠ Не удалось собрать сводную</div>
+        <div class="error-msg">${esc(msg)}</div>
+      </div>
+    `;
+  }
+</script>
+</body>
+</html>

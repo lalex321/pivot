@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+.streamlit/secrets.toml
+
+# Локальные тестовые материалы — не пушим в публичный репо
+samples/
+*.xlsx
+!samples/.gitkeep
+
+# IDE
+.idea/
+.vscode/
