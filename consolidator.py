@@ -382,9 +382,9 @@ def build_workbook_bytes(episodes: dict[int, EpisodeData], profile: Profile) -> 
     wb.active.title = "Character Summary"
 
     _write_pivot_sheet(
-        wb.create_sheet("Dialog Summary"),
-        "Dialog Word Count by Character and Episode",
-        metric_index=0,
+        wb.create_sheet("Transcription Summary"),
+        "Transcription Word Count by Character and Episode",
+        metric_index=1,
         pivot=pivot,
         all_chars=all_chars,
         episodes=episodes,
