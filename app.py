@@ -4,18 +4,59 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import quote
 
-from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import FileResponse, Response
-from fastapi.staticfiles import StaticFiles
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
 from consolidator import PROFILES, consolidate
 
-app = FastAPI(title="Пивот", docs_url=None, redoc_url=None)
+
+# ---------- Basic Auth (optional, env-driven) ----------
+_BASIC_USER = os.environ.get("BASIC_AUTH_USER", "").strip()
+_BASIC_PASSWORD = os.environ.get("BASIC_AUTH_PASSWORD", "").strip()
+_AUTH_ENABLED = bool(_BASIC_USER and _BASIC_PASSWORD)
+
+_security = HTTPBasic(auto_error=False)
+
+
+def require_auth(
+    credentials: HTTPBasicCredentials | None = Depends(_security),
+) -> None:
+    """Глобальная проверка Basic Auth, если env BASIC_AUTH_* заданы."""
+    if not _AUTH_ENABLED:
+        return
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+            headers={"WWW-Authenticate": 'Basic realm="Pivot"'},
+        )
+    ok_user = secrets.compare_digest(
+        credentials.username.encode("utf-8"), _BASIC_USER.encode("utf-8")
+    )
+    ok_pass = secrets.compare_digest(
+        credentials.password.encode("utf-8"), _BASIC_PASSWORD.encode("utf-8")
+    )
+    if not (ok_user and ok_pass):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials",
+            headers={"WWW-Authenticate": 'Basic realm="Pivot"'},
+        )
+
+
+app = FastAPI(
+    title="Пивот",
+    docs_url=None,
+    redoc_url=None,
+    dependencies=[Depends(require_auth)],
+)
 
 STATIC_DIR = Path(__file__).parent / "static"
 DATA_DIR = Path(os.environ.get("DATA_DIR", Path(__file__).parent / "_data"))
@@ -220,4 +261,3 @@ async def do_consolidate(
     )
 
 
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
