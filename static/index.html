@@ -4,12 +4,25 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Пивот — сводная статистика слов</title>
+<script>
+  // применяем тему до отрисовки, чтобы не было вспышки чужого цвета
+  (function() {
+    try {
+      const saved = localStorage.getItem('pivot-theme');
+      const prefersLight = window.matchMedia &&
+        window.matchMedia('(prefers-color-scheme: light)').matches;
+      document.documentElement.dataset.theme = saved || (prefersLight ? 'light' : 'dark');
+    } catch (_) {
+      document.documentElement.dataset.theme = 'dark';
+    }
+  })();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  :root {
+  :root, [data-theme="dark"] {
     --bg: #0a0a0f;
     --bg-2: #13131a;
     --card: #18181b;
@@ -26,6 +39,36 @@
     --danger: #ef4444;
     --success: #10b981;
     --warn: #f59e0b;
+    --stat-bg: rgba(0,0,0,0.25);
+    --logo-top: #fff;
+    --dropzone-bg: rgba(24, 24, 27, 0.4);
+    --dropzone-bg-hover: rgba(24, 24, 27, 0.6);
+    --glow-opacity: 0.5;
+    --glow-opacity-2: 0.4;
+  }
+  [data-theme="light"] {
+    --bg: #fafafa;
+    --bg-2: #f4f4f5;
+    --card: #ffffff;
+    --card-hi: #fafafa;
+    --border: #e4e4e7;
+    --border-strong: #d4d4d8;
+    --text: #18181b;
+    --text-dim: #52525b;
+    --text-faint: #71717a;
+    --accent: #7c3aed;
+    --accent-hi: #6d28d9;
+    --accent-deep: #6d28d9;
+    --accent-glow: rgba(124, 58, 237, 0.2);
+    --danger: #dc2626;
+    --success: #059669;
+    --warn: #d97706;
+    --stat-bg: rgba(0,0,0,0.025);
+    --logo-top: #18181b;
+    --dropzone-bg: rgba(255, 255, 255, 0.6);
+    --dropzone-bg-hover: rgba(255, 255, 255, 0.9);
+    --glow-opacity: 0.25;
+    --glow-opacity-2: 0.15;
   }
   html, body {
     min-height: 100vh;
@@ -50,13 +93,13 @@
     filter: blur(80px);
     pointer-events: none;
     z-index: 0;
-    opacity: 0.5;
+    opacity: var(--glow-opacity);
   }
   .bg-glow.secondary {
     top: auto; right: auto;
     bottom: -20%; left: -15%;
     background: radial-gradient(circle, rgba(124, 58, 237, 0.25) 0%, transparent 60%);
-    opacity: 0.4;
+    opacity: var(--glow-opacity-2);
   }
 
   main {
@@ -73,7 +116,7 @@
     font-weight: 700;
     letter-spacing: -0.03em;
     line-height: 1;
-    background: linear-gradient(135deg, #fff 0%, var(--accent) 80%);
+    background: linear-gradient(135deg, var(--logo-top) 0%, var(--accent) 80%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -90,7 +133,7 @@
     position: relative;
     border: 2px dashed var(--border-strong);
     border-radius: 12px;
-    background: rgba(24, 24, 27, 0.4);
+    background: var(--dropzone-bg);
     backdrop-filter: blur(8px);
     padding: 28px 20px;
     text-align: center;
@@ -101,7 +144,7 @@
   }
   .dropzone:hover {
     border-color: var(--border-strong);
-    background: rgba(24, 24, 27, 0.6);
+    background: var(--dropzone-bg-hover);
     transform: translateY(-1px);
   }
   .dropzone.dragover {
@@ -335,7 +378,7 @@
   }
   .stat {
     padding: 10px 12px;
-    background: rgba(0,0,0,0.25);
+    background: var(--stat-bg);
     border: 1px solid var(--border);
     border-radius: 8px;
   }
@@ -421,6 +464,33 @@
   }
   .error-msg { color: var(--text-dim); font-size: 13px; }
 
+  /* theme toggle */
+  .theme-toggle {
+    position: fixed;
+    top: 14px; right: 14px;
+    z-index: 10;
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    transition: all 180ms cubic-bezier(0.4, 0, 0.2, 1);
+    padding: 0;
+  }
+  .theme-toggle:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    transform: scale(1.06);
+  }
+  .theme-toggle svg { width: 16px; height: 16px; display: block; }
+  [data-theme="dark"] .icon-sun { display: block; }
+  [data-theme="dark"] .icon-moon { display: none; }
+  [data-theme="light"] .icon-sun { display: none; }
+  [data-theme="light"] .icon-moon { display: block; }
+
   footer {
     position: relative;
     z-index: 1;
@@ -442,6 +512,16 @@
 <body>
 <div class="bg-glow"></div>
 <div class="bg-glow secondary"></div>
+
+<button class="theme-toggle" id="theme-toggle" aria-label="Переключить тему" title="Переключить тему">
+  <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="12" r="4"/>
+    <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
+  </svg>
+  <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+  </svg>
+</button>
 
 <main>
   <header>
@@ -483,6 +563,15 @@
   const btn = document.getElementById('process-btn');
   const btnLabel = document.getElementById('process-label');
   const output = document.getElementById('output');
+  const themeToggle = document.getElementById('theme-toggle');
+
+  // --- theme toggle ---
+  themeToggle.addEventListener('click', () => {
+    const cur = document.documentElement.dataset.theme;
+    const next = cur === 'light' ? 'dark' : 'light';
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem('pivot-theme', next); } catch (_) {}
+  });
 
   const EPISODE_RE = /(\d+)\s*СЕРИЯ/i;
   let files = [];
@@ -559,7 +648,7 @@
       filesList.innerHTML = '';
     } else {
       toolbar.innerHTML = `
-        <span>${files.length} файл${pluralRu(files.length, 'а', 'ов', '')}</span>
+        <span>${files.length} файл${pluralRu(files.length, '', 'а', 'ов')}</span>
         <button class="clear-all" id="clear-all-btn">Очистить всё</button>
       `;
       document.getElementById('clear-all-btn').onclick = clearAll;

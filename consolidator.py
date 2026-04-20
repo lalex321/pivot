@@ -64,8 +64,8 @@ class Profile:
         "Onscreen Text",
         "Total WC",
     )
-    character_label: str = "Персонаж"
-    episode_label: str = "Серия"
+    character_label: str = "Character"
+    episode_label: str = "Episode"
 
 
 PROFILES: dict[str, Profile] = {
@@ -160,7 +160,7 @@ def build_pivot(
     for ep, d in episodes.items():
         for r in d.rows:
             cell = r[profile.col_character]
-            name = (str(cell).strip() if cell else "") or "(без имени)"
+            name = (str(cell).strip() if cell else "") or "(unnamed)"
             all_chars.add(name)
             pivot.setdefault(name, {})[ep] = (
                 r[profile.col_dialog] or 0,
@@ -193,7 +193,7 @@ def _write_pivot_sheet(
     headers = (
         [profile.character_label]
         + [f"{profile.episode_label} {i}" for i in sorted(episodes.keys())]
-        + ["Итого по персонажу", "Кол-во серий"]
+        + ["Character Total", "Episodes"]
     )
     _style_header_row(ws, 3, headers)
 
@@ -224,7 +224,7 @@ def _write_pivot_sheet(
         cnt.font, cnt.alignment, cnt.border = NORMAL_FONT, RIGHT, BORDER
         row += 1
 
-    tc = ws.cell(row=row, column=1, value="ИТОГО ПО СЕРИИ")
+    tc = ws.cell(row=row, column=1, value="EPISODE TOTAL")
     tc.font, tc.fill, tc.alignment, tc.border = TOTAL_FONT, TOTAL_FILL, LEFT, BORDER
     for i in range(2, len(headers) + 1):
         col = get_column_letter(i)
@@ -249,7 +249,7 @@ def _write_long_sheet(ws, episodes, profile: Profile) -> None:
     for ep in sorted(episodes.keys()):
         for row in episodes[ep].rows:
             cell0 = row[profile.col_character]
-            name = (str(cell0).strip() if cell0 else "") or "(без имени)"
+            name = (str(cell0).strip() if cell0 else "") or "(unnamed)"
             ws.cell(row=r, column=1, value=ep).alignment = CENTER
             ws.cell(row=r, column=2, value=name).alignment = LEFT
             for col, val in enumerate(row[1:8], start=3):
@@ -273,7 +273,7 @@ def _write_long_sheet(ws, episodes, profile: Profile) -> None:
 
 
 def _write_totals_sheet(ws, episodes, profile: Profile) -> None:
-    ws.cell(row=1, column=1, value="Итоговая статистика по каждой серии").font = TITLE_FONT
+    ws.cell(row=1, column=1, value="Per-Episode Totals").font = TITLE_FONT
     ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=8)
     ws.cell(row=1, column=1).alignment = CENTER
 
@@ -295,7 +295,7 @@ def _write_totals_sheet(ws, episodes, profile: Profile) -> None:
                 c.font, c.alignment = NORMAL_FONT, RIGHT
         r += 1
 
-    ws.cell(row=r, column=1, value=f"ВСЕГО ({len(episodes)} серий)")
+    ws.cell(row=r, column=1, value=f"GRAND TOTAL ({len(episodes)} episodes)")
     for col in range(2, 9):
         letter = get_column_letter(col)
         ws.cell(row=r, column=col, value=f"=SUM({letter}4:{letter}{r - 1})")
@@ -324,7 +324,7 @@ def _write_episode_sheet(ws, ep: int, data: EpisodeData, profile: Profile) -> No
     )
     for row in rows:
         cell0 = row[profile.col_character]
-        name = (str(cell0).strip() if cell0 else "") or "(без имени)"
+        name = (str(cell0).strip() if cell0 else "") or "(unnamed)"
         ws.cell(row=r, column=1, value=name)
         for i, v in enumerate(row[1:8], start=2):
             ws.cell(row=r, column=i, value=v if v else None)
@@ -334,7 +334,7 @@ def _write_episode_sheet(ws, ep: int, data: EpisodeData, profile: Profile) -> No
             c.alignment = LEFT if col == 1 else RIGHT
         r += 1
 
-    ws.cell(row=r, column=1, value="ИТОГО")
+    ws.cell(row=r, column=1, value="TOTAL")
     for col in range(2, 9):
         letter = get_column_letter(col)
         ws.cell(row=r, column=col, value=f"=SUM({letter}2:{letter}{r - 1})")
@@ -360,18 +360,18 @@ def build_workbook_bytes(episodes: dict[int, EpisodeData], profile: Profile) -> 
     wb = Workbook()
     _write_pivot_sheet(
         wb.active,
-        "Сводная статистика слов по персонажам и сериям (TOTAL WORD COUNT)",
+        "Word Count Summary by Character and Episode (TOTAL)",
         metric_index=2,
         pivot=pivot,
         all_chars=all_chars,
         episodes=episodes,
         profile=profile,
     )
-    wb.active.title = "Сводная по сериям"
+    wb.active.title = "Character Summary"
 
     _write_pivot_sheet(
-        wb.create_sheet("Диалоги по сериям"),
-        "Количество слов в диалогах (DIALOG WORD COUNT)",
+        wb.create_sheet("Dialog Summary"),
+        "Dialog Word Count by Character and Episode",
         metric_index=0,
         pivot=pivot,
         all_chars=all_chars,
@@ -379,8 +379,8 @@ def build_workbook_bytes(episodes: dict[int, EpisodeData], profile: Profile) -> 
         profile=profile,
     )
 
-    _write_long_sheet(wb.create_sheet("Все данные"), episodes, profile)
-    _write_totals_sheet(wb.create_sheet("Итоги по сериям"), episodes, profile)
+    _write_long_sheet(wb.create_sheet("All Data"), episodes, profile)
+    _write_totals_sheet(wb.create_sheet("Episode Totals"), episodes, profile)
 
     for ep in sorted(episodes.keys()):
         _write_episode_sheet(wb.create_sheet(f"{profile.episode_label} {ep}"), ep, episodes[ep], profile)
@@ -471,7 +471,7 @@ def _cli() -> None:
         out = Path(args.output)
     else:
         common = (info.get("common_name") or "").strip()
-        out = folder / (f"{common} - Сводная статистика.xlsx" if common else "Сводная статистика.xlsx")
+        out = folder / (f"{common} - Word Count Summary.xlsx" if common else "Word Count Summary.xlsx")
     out.write_bytes(xlsx)
     for w in info["warnings"]:
         print(f"  ! {w}")
