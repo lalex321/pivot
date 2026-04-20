@@ -231,6 +231,9 @@ def _write_pivot_sheet(
         cell = ws.cell(row=row, column=i, value=f"=SUM({col}4:{col}{row - 1})")
         cell.font, cell.fill, cell.alignment, cell.border = TOTAL_FONT, TOTAL_FILL, RIGHT, BORDER
 
+    # фильтр на заголовке + данных (без строки "ИТОГО ПО СЕРИИ")
+    ws.auto_filter.ref = f"A3:{get_column_letter(len(headers))}{row - 1}"
+
     ws.column_dimensions["A"].width = 32
     for i in range(2, len(headers) + 1):
         ws.column_dimensions[get_column_letter(i)].width = 13
@@ -257,6 +260,9 @@ def _write_long_sheet(ws, episodes, profile: Profile) -> None:
                 c.font = NORMAL_FONT
                 c.border = BORDER
             r += 1
+
+    # фильтр на заголовке + всех данных плоского листа
+    ws.auto_filter.ref = f"A1:I{r - 1}"
 
     ws.column_dimensions["A"].width = 8
     ws.column_dimensions["B"].width = 32
@@ -298,6 +304,9 @@ def _write_totals_sheet(ws, episodes, profile: Profile) -> None:
         c.font, c.fill, c.border = TOTAL_FONT, TOTAL_FILL, BORDER
         c.alignment = LEFT if col == 1 else RIGHT
 
+    # фильтр на заголовке + данных (без строки "ВСЕГО")
+    ws.auto_filter.ref = f"A3:H{r - 1}"
+
     ws.column_dimensions["A"].width = 18
     for i in range(2, 9):
         ws.column_dimensions[get_column_letter(i)].width = 18
@@ -333,6 +342,9 @@ def _write_episode_sheet(ws, ep: int, data: EpisodeData, profile: Profile) -> No
         c = ws.cell(row=r, column=col)
         c.font, c.fill, c.border = TOTAL_FONT, TOTAL_FILL, BORDER
         c.alignment = LEFT if col == 1 else RIGHT
+
+    # фильтр на заголовке + данных (без строки "ИТОГО")
+    ws.auto_filter.ref = f"A1:H{r - 1}"
 
     ws.column_dimensions["A"].width = 32
     for i in range(2, 9):
