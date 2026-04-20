@@ -55,7 +55,8 @@ async def do_consolidate(
     except ValueError as e:
         raise HTTPException(400, str(e))
 
-    fname = "Сводная статистика.xlsx"
+    common_name = (info.get("common_name") or "").strip()
+    fname = f"{common_name} - Сводная статистика.xlsx" if common_name else "Сводная статистика.xlsx"
     info_header = json.dumps(info, ensure_ascii=True)  # ASCII-safe for HTTP header
 
     return Response(

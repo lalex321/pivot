@@ -390,12 +390,39 @@ def build_workbook_bytes(episodes: dict[int, EpisodeData], profile: Profile) -> 
     return buf.getvalue()
 
 
+def derive_common_name(filenames: list[str], profile: Profile) -> str:
+    """
+    Достаёт общее «имя шоу» из набора имён файлов.
+    Удаляет расширение и маркер серии (по паттерну профиля), затем оставляет только
+    токены, встречающиеся во ВСЕХ именах (сравнение case-insensitive, порядок —
+    из первого файла). Возвращает "" если общих слов нет.
+    """
+    rx = re.compile(profile.episode_pattern, re.IGNORECASE)
+    token_sets_upper: list[set[str]] = []
+    reference: list[str] = []
+
+    for i, fname in enumerate(filenames):
+        stem = Path(fname).stem
+        stripped = rx.sub(" ", stem)
+        tokens = [t for t in re.split(r"\s+", stripped.strip()) if t]
+        if i == 0:
+            reference = tokens
+        token_sets_upper.append({t.upper() for t in tokens})
+
+    if not reference or not token_sets_upper:
+        return ""
+
+    rest = token_sets_upper[1:]
+    common = [t for t in reference if all(t.upper() in s for s in rest)]
+    return " ".join(common).strip()
+
+
 def consolidate(
     files: list[tuple[str, bytes]], profile_key: str = "default"
 ) -> tuple[bytes, dict]:
     """
     Высокоуровневая обёртка для UI.
-    Возвращает (xlsx_bytes, info) где info = {'episodes', 'characters', 'warnings'}.
+    Возвращает (xlsx_bytes, info) где info = {'episodes', 'characters', 'warnings', 'common_name'}.
     """
     if profile_key not in PROFILES:
         raise ValueError(f"Неизвестный профиль: {profile_key}")
@@ -410,10 +437,14 @@ def consolidate(
 
     xlsx_bytes = build_workbook_bytes(episodes, profile)
     all_chars, _ = build_pivot(episodes, profile)
+    # общее имя берём только из файлов, которые реально попали в сводную
+    accepted_names = [d.filename for d in episodes.values()]
+    common_name = derive_common_name(accepted_names, profile)
     return xlsx_bytes, {
         "episodes": sorted(episodes.keys()),
         "characters": len(all_chars),
         "warnings": warnings,
+        "common_name": common_name,
     }
 
 
@@ -436,7 +467,11 @@ def _cli() -> None:
         raise SystemExit(f"В папке нет xlsx: {folder}")
 
     xlsx, info = consolidate(files, args.profile)
-    out = Path(args.output) if args.output else folder / "Сводная статистика.xlsx"
+    if args.output:
+        out = Path(args.output)
+    else:
+        common = (info.get("common_name") or "").strip()
+        out = folder / (f"{common} - Сводная статистика.xlsx" if common else "Сводная статистика.xlsx")
     out.write_bytes(xlsx)
     for w in info["warnings"]:
         print(f"  ! {w}")
