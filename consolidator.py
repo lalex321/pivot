@@ -302,6 +302,12 @@ def _write_pivot_sheet(
 
     # сортировка по имени персонажа (case-insensitive)
     sorted_chars = sorted(all_chars, key=lambda x: x.upper())
+    # (unnamed) с нулевой суммой по текущей метрике — скрываем (это просто мусор)
+    sorted_chars = [
+        c for c in sorted_chars
+        if c != "(unnamed)"
+        or sum(v[metric_index] for v in pivot[c].values()) > 0
+    ]
 
     row = 4
     first_ep_col = get_column_letter(2)
