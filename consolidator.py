@@ -91,6 +91,66 @@ class EpisodeData:
     show_title: str = ""  # из листа "Project Info" → колонка A = SHOW TITLE → B = значение
 
 
+# ---------- извлечение номера эпизода ----------
+# Fallback-каскад для распознавания номера серии в имени файла.
+# Применяется ПОСЛЕ явного паттерна профиля. Все — case-insensitive.
+# Первый совпавший выигрывает.
+#
+# Используем (?<![A-Za-z]) / (?![A-Za-z]) вместо \b, потому что \b в Python
+# regex считает `_` частью «слова», и такие имена как "VLADIMIR_E03" не
+# матчились бы. Наши lookaround-ы исключают только буквы — цифры и `_`
+# разрешены как соседние символы.
+_NL = r"(?<![A-Za-z])"  # слева не буква
+_NR = r"(?![A-Za-z])"   # справа не буква
+
+_FALLBACK_EPISODE_PATTERNS: list[re.Pattern[str]] = [
+    re.compile(p, re.IGNORECASE) for p in [
+        rf"{_NL}s\d+\s*e(\d+){_NR}",            # S01E04, S01 E04 (не внутри "bass01E04")
+        rf"{_NL}episode\s*(\d+){_NR}",           # Episode 4
+        rf"{_NL}ep\.?\s*(\d+){_NR}",             # Ep 04, EP.4, EP04
+        rf"{_NL}e(\d+){_NR}",                     # E04 — даже рядом с '_'
+        r"(\d+)\s*серия",                         # 1 серия (обобщение дефолта)
+        r"серия\s*(\d+)",                         # серия 1 (обратный порядок)
+        r"^[\s_-]*(\d+)(?=[\s_.\-]|$)",          # ведущее число: 04_show.xlsx, 04.xlsx
+    ]
+]
+
+_ACCEPTED_FORMATS_HINT = (
+    "Ожидаю форматы: '1 СЕРИЯ ...', 'Episode 1', 'S01E01', "
+    "'Ep01', 'E01', '01_...'"
+)
+
+
+def _detect_episode(stem: str, profile_pattern: str) -> tuple[int, str] | None:
+    """
+    Извлекает номер эпизода из имени файла без расширения.
+    Сначала пробуется явный паттерн профиля (case-insensitive),
+    затем каскад _FALLBACK_EPISODE_PATTERNS.
+    Возвращает (ep_num, stem_без_маркера) или None.
+    """
+    patterns: list[re.Pattern[str]] = []
+    try:
+        patterns.append(re.compile(profile_pattern, re.IGNORECASE))
+    except re.error:
+        pass
+    patterns.extend(_FALLBACK_EPISODE_PATTERNS)
+
+    for rx in patterns:
+        m = rx.search(stem)
+        if not m:
+            continue
+        groups = [g for g in m.groups() if g is not None]
+        if not groups:
+            continue
+        try:
+            ep_num = int(groups[0])
+        except ValueError:
+            continue
+        cleaned = rx.sub(" ", stem, count=1)
+        return ep_num, cleaned
+    return None
+
+
 # ---------- чтение ----------
 def collect_episodes(
     files: list[tuple[str, bytes]],
@@ -99,7 +159,6 @@ def collect_episodes(
     """
     Принимает [(filename, bytes)], возвращает ({ep_num: EpisodeData}, warnings).
     """
-    rx = re.compile(profile.episode_pattern)
     episodes: dict[int, EpisodeData] = {}
     warnings: list[str] = []
 
@@ -107,11 +166,14 @@ def collect_episodes(
         if fname.startswith("~$") or not fname.lower().endswith(".xlsx"):
             warnings.append(f"{fname}: не xlsx, пропущен")
             continue
-        m = rx.search(fname)
-        if not m:
-            warnings.append(f"{fname}: номер серии не распознан по паттерну, пропущен")
+        stem = Path(fname).stem
+        detection = _detect_episode(stem, profile.episode_pattern)
+        if detection is None:
+            warnings.append(
+                f"{fname}: не нашёл номер эпизода. {_ACCEPTED_FORMATS_HINT}"
+            )
             continue
-        ep_num = int(m.group(1))
+        ep_num, _stripped = detection
 
         wb = load_workbook(io.BytesIO(blob), data_only=True)
         if profile.sheet_name not in wb.sheetnames:
@@ -341,17 +403,18 @@ def build_workbook_bytes(episodes: dict[int, EpisodeData], profile: Profile) -> 
 def derive_common_name(filenames: list[str], profile: Profile) -> str:
     """
     Достаёт общее «имя шоу» из набора имён файлов.
-    Удаляет расширение и маркер серии (по паттерну профиля), затем оставляет только
-    токены, встречающиеся во ВСЕХ именах (сравнение case-insensitive, порядок —
-    из первого файла). Возвращает "" если общих слов нет.
+    Удаляет расширение и маркер эпизода (через тот же каскадный helper, что
+    и парсер), затем оставляет только токены, встречающиеся во ВСЕХ именах
+    (сравнение case-insensitive, порядок — из первого файла). Возвращает "" если
+    общих слов нет.
     """
-    rx = re.compile(profile.episode_pattern, re.IGNORECASE)
     token_sets_upper: list[set[str]] = []
     reference: list[str] = []
 
     for i, fname in enumerate(filenames):
         stem = Path(fname).stem
-        stripped = rx.sub(" ", stem)
+        det = _detect_episode(stem, profile.episode_pattern)
+        stripped = det[1] if det is not None else stem
         tokens = [t for t in re.split(r"\s+", stripped.strip()) if t]
         if i == 0:
             reference = tokens
