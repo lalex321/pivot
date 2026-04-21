@@ -197,8 +197,8 @@ def _write_pivot_sheet(
     )
     _style_header_row(ws, 3, headers)
 
-    totals = {c: sum(v[metric_index] for v in pivot[c].values()) for c in all_chars}
-    sorted_chars = sorted(all_chars, key=lambda x: (-totals[x], x))
+    # сортировка по имени персонажа (case-insensitive)
+    sorted_chars = sorted(all_chars, key=lambda x: x.upper())
 
     row = 4
     first_ep_col = get_column_letter(2)
@@ -250,21 +250,22 @@ def build_workbook_bytes(episodes: dict[int, EpisodeData], profile: Profile) -> 
     all_chars, pivot = build_pivot(episodes, profile)
 
     wb = Workbook()
+    # Transcription Summary — первым, он же default-active (Excel открывает на нём)
     _write_pivot_sheet(
         wb.active,
-        "Dialogue Word Count by Character and Episode",
-        metric_index=0,  # Dialog WC (колонка B в исходнике — оригинал)
+        "Transcription Word Count by Character and Episode",
+        metric_index=1,  # Transcription WC (колонка C в исходнике — перевод)
         pivot=pivot,
         all_chars=all_chars,
         episodes=episodes,
         profile=profile,
     )
-    wb.active.title = "Dialogue Summary"
+    wb.active.title = "Transcription Summary"
 
     _write_pivot_sheet(
-        wb.create_sheet("Transcription Summary"),
-        "Transcription Word Count by Character and Episode",
-        metric_index=1,  # Transcription WC (колонка C в исходнике — перевод)
+        wb.create_sheet("Dialogue Summary"),
+        "Dialogue Word Count by Character and Episode",
+        metric_index=0,  # Dialog WC (колонка B в исходнике — оригинал)
         pivot=pivot,
         all_chars=all_chars,
         episodes=episodes,
