@@ -233,7 +233,7 @@ def _write_pivot_sheet(
 
     headers = (
         [profile.character_label]
-        + [f"{profile.episode_label} {i}" for i in sorted(episodes.keys())]
+        + [f"E{i:02d}" for i in sorted(episodes.keys())]
         + ["Character Total", "Episodes"]
     )
     _style_header_row(ws, 3, headers)
@@ -280,8 +280,12 @@ def _write_pivot_sheet(
     ws.auto_filter.ref = f"A3:{get_column_letter(len(headers))}{last_data_row}"
 
     ws.column_dimensions["A"].width = 32
-    for i in range(2, len(headers) + 1):
-        ws.column_dimensions[get_column_letter(i)].width = 13
+    # эпизод-колонки: уже ("E01" + место под стрелку автофильтра)
+    for i in range(2, 2 + n_eps):
+        ws.column_dimensions[get_column_letter(i)].width = 9
+    # последние 2 колонки шире: "Character Total" и "Episodes"
+    ws.column_dimensions[get_column_letter(2 + n_eps)].width = 13
+    ws.column_dimensions[get_column_letter(3 + n_eps)].width = 11
     ws.row_dimensions[3].height = 32
     ws.freeze_panes = "B4"
 
