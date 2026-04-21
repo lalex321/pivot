@@ -245,126 +245,6 @@ def _write_pivot_sheet(
     ws.freeze_panes = "B4"
 
 
-def _write_long_sheet(ws, episodes, profile: Profile) -> None:
-    headers = [profile.episode_label, profile.character_label, *profile.metric_labels]
-    _style_header_row(ws, 1, headers)
-
-    r = 2
-    for ep in sorted(episodes.keys()):
-        for row in episodes[ep].rows:
-            cell0 = row[profile.col_character]
-            name = (str(cell0).strip() if cell0 else "") or "(unnamed)"
-            ws.cell(row=r, column=1, value=ep).alignment = CENTER
-            ws.cell(row=r, column=2, value=name).alignment = LEFT
-            for col, val in enumerate(row[1:8], start=3):
-                cell = ws.cell(row=r, column=col, value=val if val else None)
-                cell.alignment = RIGHT
-            for col in range(1, 10):
-                c = ws.cell(row=r, column=col)
-                c.font = NORMAL_FONT
-                c.border = BORDER
-            r += 1
-
-    # фильтр на заголовке + всех данных плоского листа
-    ws.auto_filter.ref = f"A1:I{r - 1}"
-
-    ws.column_dimensions["A"].width = 8
-    ws.column_dimensions["B"].width = 32
-    for i in range(3, 10):
-        ws.column_dimensions[get_column_letter(i)].width = 16
-    ws.row_dimensions[1].height = 42
-    ws.freeze_panes = "C2"
-
-
-def _write_totals_sheet(ws, episodes, profile: Profile) -> None:
-    ws.cell(row=1, column=1, value="Per-Episode Totals").font = TITLE_FONT
-    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=8)
-    ws.cell(row=1, column=1).alignment = CENTER
-
-    headers = [profile.episode_label, *profile.metric_labels]
-    _style_header_row(ws, 3, headers)
-
-    r = 4
-    for ep in sorted(episodes.keys()):
-        t = episodes[ep].total or (None,) * 8
-        ws.cell(row=r, column=1, value=f"{profile.episode_label} {ep}")
-        for i, v in enumerate(t[1:8], start=2):
-            ws.cell(row=r, column=i, value=v)
-        for col in range(1, 9):
-            c = ws.cell(row=r, column=col)
-            c.border = BORDER
-            if col == 1:
-                c.font, c.alignment = BOLD_SMALL, LEFT
-            else:
-                c.font, c.alignment = NORMAL_FONT, RIGHT
-        r += 1
-
-    # пустая строка-разделитель (чтобы Excel не захватывал итог при сортировке)
-    last_data_row = r - 1
-    r += 1
-
-    ws.cell(row=r, column=1, value=f"GRAND TOTAL ({len(episodes)} episodes)")
-    for col in range(2, 9):
-        letter = get_column_letter(col)
-        ws.cell(row=r, column=col, value=f"=SUM({letter}4:{letter}{last_data_row})")
-    for col in range(1, 9):
-        c = ws.cell(row=r, column=col)
-        c.font, c.fill, c.border = TOTAL_FONT, TOTAL_FILL, BORDER
-        c.alignment = LEFT if col == 1 else RIGHT
-
-    # фильтр на заголовке + данных (без разделителя и строки "GRAND TOTAL")
-    ws.auto_filter.ref = f"A3:H{last_data_row}"
-
-    ws.column_dimensions["A"].width = 18
-    for i in range(2, 9):
-        ws.column_dimensions[get_column_letter(i)].width = 18
-    ws.row_dimensions[3].height = 32
-
-
-def _write_episode_sheet(ws, ep: int, data: EpisodeData, profile: Profile) -> None:
-    headers = [profile.character_label, *profile.metric_labels]
-    _style_header_row(ws, 1, headers)
-
-    r = 2
-    rows = sorted(
-        data.rows,
-        key=lambda x: (-(x[profile.col_total] or 0), str(x[profile.col_character] or "").strip()),
-    )
-    for row in rows:
-        cell0 = row[profile.col_character]
-        name = (str(cell0).strip() if cell0 else "") or "(unnamed)"
-        ws.cell(row=r, column=1, value=name)
-        for i, v in enumerate(row[1:8], start=2):
-            ws.cell(row=r, column=i, value=v if v else None)
-        for col in range(1, 9):
-            c = ws.cell(row=r, column=col)
-            c.font, c.border = NORMAL_FONT, BORDER
-            c.alignment = LEFT if col == 1 else RIGHT
-        r += 1
-
-    # пустая строка-разделитель (чтобы Excel не захватывал итог при сортировке)
-    last_data_row = r - 1
-    r += 1
-
-    ws.cell(row=r, column=1, value="TOTAL")
-    for col in range(2, 9):
-        letter = get_column_letter(col)
-        ws.cell(row=r, column=col, value=f"=SUM({letter}2:{letter}{last_data_row})")
-    for col in range(1, 9):
-        c = ws.cell(row=r, column=col)
-        c.font, c.fill, c.border = TOTAL_FONT, TOTAL_FILL, BORDER
-        c.alignment = LEFT if col == 1 else RIGHT
-
-    # фильтр на заголовке + данных (без разделителя и строки "TOTAL")
-    ws.auto_filter.ref = f"A1:H{last_data_row}"
-
-    ws.column_dimensions["A"].width = 32
-    for i in range(2, 9):
-        ws.column_dimensions[get_column_letter(i)].width = 18
-    ws.row_dimensions[1].height = 32
-    ws.freeze_panes = "B2"
-
-
 # ---------- публичный API ----------
 def build_workbook_bytes(episodes: dict[int, EpisodeData], profile: Profile) -> bytes:
     all_chars, pivot = build_pivot(episodes, profile)
@@ -372,30 +252,24 @@ def build_workbook_bytes(episodes: dict[int, EpisodeData], profile: Profile) -> 
     wb = Workbook()
     _write_pivot_sheet(
         wb.active,
-        "Word Count Summary by Character and Episode (TOTAL)",
-        metric_index=2,
+        "Dialogue Word Count by Character and Episode",
+        metric_index=0,  # Dialog WC (колонка B в исходнике — оригинал)
         pivot=pivot,
         all_chars=all_chars,
         episodes=episodes,
         profile=profile,
     )
-    wb.active.title = "Character Summary"
+    wb.active.title = "Dialogue Summary"
 
     _write_pivot_sheet(
         wb.create_sheet("Transcription Summary"),
         "Transcription Word Count by Character and Episode",
-        metric_index=1,
+        metric_index=1,  # Transcription WC (колонка C в исходнике — перевод)
         pivot=pivot,
         all_chars=all_chars,
         episodes=episodes,
         profile=profile,
     )
-
-    _write_long_sheet(wb.create_sheet("All Data"), episodes, profile)
-    _write_totals_sheet(wb.create_sheet("Episode Totals"), episodes, profile)
-
-    for ep in sorted(episodes.keys()):
-        _write_episode_sheet(wb.create_sheet(f"{profile.episode_label} {ep}"), ep, episodes[ep], profile)
 
     buf = io.BytesIO()
     wb.save(buf)
