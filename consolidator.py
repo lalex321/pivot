@@ -88,6 +88,7 @@ class EpisodeData:
     filename: str
     rows: list[EpisodeRow] = field(default_factory=list)
     total: EpisodeRow | None = None
+    show_title: str = ""  # из листа "Project Info" → колонка A = SHOW TITLE → B = значение
 
 
 # ---------- чтение ----------
@@ -137,13 +138,29 @@ def collect_episodes(
             elif r[profile.col_character] is not None or any(v for v in r[1:]):
                 data_rows.append(r)
 
+        # SHOW TITLE из листа Project Info (если есть)
+        show_title = ""
+        if "Project Info" in wb.sheetnames:
+            pi = wb["Project Info"]
+            for pi_row in pi.iter_rows(values_only=True):
+                if not pi_row or not pi_row[0]:
+                    continue
+                if str(pi_row[0]).strip().upper() == "SHOW TITLE":
+                    if len(pi_row) > 1 and pi_row[1] is not None:
+                        show_title = str(pi_row[1]).strip()
+                    break
+
         if ep_num in episodes:
             warnings.append(
                 f"{fname}: серия {ep_num} уже была (из {episodes[ep_num].filename}), "
                 f"беру более позднюю"
             )
         episodes[ep_num] = EpisodeData(
-            number=ep_num, filename=fname, rows=data_rows, total=total_row
+            number=ep_num,
+            filename=fname,
+            rows=data_rows,
+            total=total_row,
+            show_title=show_title,
         )
 
     return episodes, warnings
@@ -182,13 +199,37 @@ def _style_header_row(ws, row: int, headers: list[str]) -> None:
 
 
 def _write_pivot_sheet(
-    ws, title: str, metric_index: int, pivot, all_chars, episodes, profile: Profile
+    ws,
+    metric_label: str,
+    metric_index: int,
+    show_title: str,
+    pivot,
+    all_chars,
+    episodes,
+    profile: Profile,
 ) -> None:
-    """metric_index: 0=dialog, 2=total (индексы в кортеже pivot[char][ep])."""
-    ws.cell(row=1, column=1, value=title).font = TITLE_FONT
+    """
+    metric_index: 0=dialog, 1=transcription, 2=total (индексы в кортеже pivot[char][ep]).
+    Макет:
+      Row 1 — Show Title (крупный, по центру)
+      Row 2 — metric_label ('Transcription Word Count' / 'Dialogue Word Count', bold, по центру)
+      Row 3 — заголовки таблицы
+      Row 4+ — данные
+    """
     n_eps = len(episodes)
-    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=n_eps + 3)
-    ws.cell(row=1, column=1).alignment = CENTER
+    last_col = n_eps + 3
+
+    # Row 1 — Show Title
+    c1 = ws.cell(row=1, column=1, value=show_title or "")
+    c1.font = TITLE_FONT
+    c1.alignment = CENTER
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=last_col)
+
+    # Row 2 — metric label (bold)
+    c2 = ws.cell(row=2, column=1, value=metric_label)
+    c2.font = Font(name=FONT_NAME, bold=True, size=13, color="1F3864")
+    c2.alignment = CENTER
+    ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=last_col)
 
     headers = (
         [profile.character_label]
@@ -246,15 +287,27 @@ def _write_pivot_sheet(
 
 
 # ---------- публичный API ----------
+def _derive_show_title(episodes: dict[int, EpisodeData]) -> str:
+    """Общее Show Title из всех серий. Если во всех одинаковое — оно; иначе объединяем через ' / '."""
+    titles = sorted({d.show_title.strip() for d in episodes.values() if d.show_title and d.show_title.strip()})
+    if not titles:
+        return ""
+    if len(titles) == 1:
+        return titles[0]
+    return " / ".join(titles)
+
+
 def build_workbook_bytes(episodes: dict[int, EpisodeData], profile: Profile) -> bytes:
     all_chars, pivot = build_pivot(episodes, profile)
+    show_title = _derive_show_title(episodes)
 
     wb = Workbook()
     # Transcription Summary — первым, он же default-active (Excel открывает на нём)
     _write_pivot_sheet(
         wb.active,
-        "Transcription Word Count by Character and Episode",
+        metric_label="Transcription Word Count",
         metric_index=1,  # Transcription WC (колонка C в исходнике — перевод)
+        show_title=show_title,
         pivot=pivot,
         all_chars=all_chars,
         episodes=episodes,
@@ -264,8 +317,9 @@ def build_workbook_bytes(episodes: dict[int, EpisodeData], profile: Profile) -> 
 
     _write_pivot_sheet(
         wb.create_sheet("Dialogue Summary"),
-        "Dialogue Word Count by Character and Episode",
+        metric_label="Dialogue Word Count",
         metric_index=0,  # Dialog WC (колонка B в исходнике — оригинал)
+        show_title=show_title,
         pivot=pivot,
         all_chars=all_chars,
         episodes=episodes,
