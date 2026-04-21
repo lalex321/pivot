@@ -234,7 +234,7 @@ def _write_pivot_sheet(
     headers = (
         [profile.character_label]
         + [f"E{i:02d}" for i in sorted(episodes.keys())]
-        + ["Character Total", "Episodes"]
+        + ["Total", "Episodes"]
     )
     _style_header_row(ws, 3, headers)
 
@@ -271,21 +271,24 @@ def _write_pivot_sheet(
 
     tc = ws.cell(row=row, column=1, value="EPISODE TOTAL")
     tc.font, tc.fill, tc.alignment, tc.border = TOTAL_FONT, TOTAL_FILL, LEFT, BORDER
+    episodes_col_idx = len(headers)  # последняя колонка (Episodes) — сумма count'ов бессмысленна
     for i in range(2, len(headers) + 1):
         col = get_column_letter(i)
-        cell = ws.cell(row=row, column=i, value=f"=SUM({col}4:{col}{last_data_row})")
+        cell = ws.cell(row=row, column=i)
+        if i != episodes_col_idx:
+            cell.value = f"=SUM({col}4:{col}{last_data_row})"
         cell.font, cell.fill, cell.alignment, cell.border = TOTAL_FONT, TOTAL_FILL, RIGHT, BORDER
 
     # фильтр на заголовке + данных (без разделителя и строки "EPISODE TOTAL")
     ws.auto_filter.ref = f"A3:{get_column_letter(len(headers))}{last_data_row}"
 
     ws.column_dimensions["A"].width = 32
-    # эпизод-колонки: уже ("E01" + место под стрелку автофильтра)
+    # эпизод-колонки ("E01" + место под стрелку автофильтра)
     for i in range(2, 2 + n_eps):
-        ws.column_dimensions[get_column_letter(i)].width = 9
-    # последние 2 колонки шире: "Character Total" и "Episodes"
-    ws.column_dimensions[get_column_letter(2 + n_eps)].width = 13
-    ws.column_dimensions[get_column_letter(3 + n_eps)].width = 11
+        ws.column_dimensions[get_column_letter(i)].width = 11
+    # колонки Total и Episodes
+    ws.column_dimensions[get_column_letter(2 + n_eps)].width = 13  # Total
+    ws.column_dimensions[get_column_letter(3 + n_eps)].width = 11  # Episodes
     ws.row_dimensions[3].height = 32
     ws.freeze_panes = "B4"
 
