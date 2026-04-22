@@ -106,7 +106,8 @@ _NR = r"(?![A-Za-z])"   # справа не буква
 _FALLBACK_EPISODE_PATTERNS: list[re.Pattern[str]] = [
     re.compile(p, re.IGNORECASE) for p in [
         rf"{_NL}s\d+\s*e(\d+){_NR}",            # S01E04, S01 E04 (не внутри "bass01E04")
-        rf"{_NL}episode\s*(\d+){_NR}",           # Episode 4
+        rf"{_NL}episode\s*(\d+){_NR}",           # Episode 4, Episode2 (без пробела — Netflix)
+        rf"{_NL}(\d+)\s+episode{_NR}",           # 6 episode (Netflix, номер впереди)
         rf"{_NL}ep\.?\s*(\d+){_NR}",             # Ep 04, EP.4, EP04
         rf"{_NL}e(\d+){_NR}",                     # E04 — даже рядом с '_'
         r"(\d+)\s*серия",                         # 1 серия (обобщение дефолта)
@@ -269,9 +270,11 @@ def _write_pivot_sheet(
     all_chars,
     episodes,
     profile: Profile,
+    include_actor: bool = False,
 ) -> None:
     """
     metric_index: 0=dialog, 1=transcription, 2=total (индексы в кортеже pivot[char][ep]).
+    include_actor: добавить пустую колонку Actor после Character (для Transcription Summary).
     Макет:
       Row 1 — Show Title (крупный, по центру)
       Row 2 — metric_label ('Transcription Word Count' / 'Dialogue Word Count', bold, по центру)
@@ -279,7 +282,9 @@ def _write_pivot_sheet(
       Row 4+ — данные
     """
     n_eps = len(episodes)
-    last_col = n_eps + 3
+    actor_offset = 1 if include_actor else 0
+    first_ep_col_idx = 2 + actor_offset  # 1-based индекс первой E-колонки
+    last_col = n_eps + 3 + actor_offset
 
     # Row 1 — Show Title
     c1 = ws.cell(row=1, column=1, value=show_title or "")
@@ -295,6 +300,7 @@ def _write_pivot_sheet(
 
     headers = (
         [profile.character_label]
+        + (["Actor"] if include_actor else [])
         + [f"E{i:02d}" for i in sorted(episodes.keys())]
         + ["Total", "Episodes"]
     )
@@ -310,14 +316,17 @@ def _write_pivot_sheet(
     ]
 
     row = 4
-    first_ep_col = get_column_letter(2)
-    last_ep_col = get_column_letter(1 + n_eps)
-    sum_col = n_eps + 2
+    first_ep_col = get_column_letter(first_ep_col_idx)
+    last_ep_col = get_column_letter(first_ep_col_idx - 1 + n_eps)
+    sum_col = first_ep_col_idx + n_eps
 
     for name in sorted_chars:
         c = ws.cell(row=row, column=1, value=name)
         c.font, c.alignment, c.border = NORMAL_FONT, LEFT, BORDER
-        for i, ep in enumerate(sorted(episodes.keys()), start=2):
+        if include_actor:
+            ac = ws.cell(row=row, column=2, value=None)
+            ac.font, ac.alignment, ac.border = NORMAL_FONT, LEFT, BORDER
+        for i, ep in enumerate(sorted(episodes.keys()), start=first_ep_col_idx):
             val = pivot[name].get(ep, (0, 0, 0))[metric_index]
             cell = ws.cell(row=row, column=i, value=val if val else None)
             cell.font, cell.alignment, cell.border = NORMAL_FONT, RIGHT, BORDER
@@ -343,7 +352,9 @@ def _write_pivot_sheet(
     for i in range(2, len(headers) + 1):
         col = get_column_letter(i)
         cell = ws.cell(row=row, column=i)
-        if i != episodes_col_idx:
+        # не суммируем под колонками Actor и Episodes
+        skip_sum = i == episodes_col_idx or (include_actor and i == 2)
+        if not skip_sum:
             cell.value = f"=SUM({col}4:{col}{last_data_row})"
         cell.font, cell.fill, cell.alignment, cell.border = TOTAL_FONT, TOTAL_FILL, RIGHT, BORDER
 
@@ -351,14 +362,16 @@ def _write_pivot_sheet(
     ws.auto_filter.ref = f"A3:{get_column_letter(len(headers))}{last_data_row}"
 
     ws.column_dimensions["A"].width = 32
+    if include_actor:
+        ws.column_dimensions["B"].width = 24  # Actor
     # эпизод-колонки ("E01" + место под стрелку автофильтра)
-    for i in range(2, 2 + n_eps):
+    for i in range(first_ep_col_idx, first_ep_col_idx + n_eps):
         ws.column_dimensions[get_column_letter(i)].width = 11
     # колонки Total и Episodes
-    ws.column_dimensions[get_column_letter(2 + n_eps)].width = 13  # Total
-    ws.column_dimensions[get_column_letter(3 + n_eps)].width = 11  # Episodes
+    ws.column_dimensions[get_column_letter(sum_col)].width = 13      # Total
+    ws.column_dimensions[get_column_letter(sum_col + 1)].width = 11  # Episodes
     ws.row_dimensions[3].height = 32
-    ws.freeze_panes = "B4"
+    ws.freeze_panes = f"{get_column_letter(first_ep_col_idx)}4"
 
 
 # ---------- публичный API ----------
@@ -387,6 +400,7 @@ def build_workbook_bytes(episodes: dict[int, EpisodeData], profile: Profile) -> 
         all_chars=all_chars,
         episodes=episodes,
         profile=profile,
+        include_actor=True,
     )
     wb.active.title = "Transcription Summary"
 
